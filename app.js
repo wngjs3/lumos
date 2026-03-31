@@ -40,6 +40,9 @@ const TRANSLATIONS = {
         clearAllData: '모든 저장 데이터 삭제',
         save: '저장',
         apiKeyPlaceholder: 'API Key를 입력하세요',
+        modelLabel: 'AI 모델',
+        modelFlash: 'Flash (빠르고 저렴)',
+        modelPro: 'Pro (고성능)',
         // Dynamic JS strings
         sessionCost: '이번 세션 비용:',
         currentSessionCost: '현재 세션 비용:',
@@ -121,6 +124,9 @@ const TRANSLATIONS = {
         clearAllData: 'Delete all saved data',
         save: 'Save',
         apiKeyPlaceholder: 'Enter your API Key',
+        modelLabel: 'AI Model',
+        modelFlash: 'Flash (fast & affordable)',
+        modelPro: 'Pro (high performance)',
         sessionCost: 'Session cost:',
         currentSessionCost: 'Session cost:',
         accumulatedCost: 'Total cost:',
@@ -201,6 +207,12 @@ function applyLanguage() {
     document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
         const key = el.getAttribute('data-i18n-placeholder');
         el.placeholder = t(key);
+    });
+
+    // Update select options with data-i18n
+    document.querySelectorAll('select option[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        el.textContent = t(key);
     });
 
     // Update document title
@@ -316,15 +328,37 @@ function getDefaultPrompts() {
     return currentLang === 'ko' ? { ...DEFAULT_PROMPTS_KO } : { ...DEFAULT_PROMPTS_EN };
 }
 
-// ─── Gemini Pricing (per 1M tokens) ───
-// Gemini 2.5 Pro pricing: https://ai.google.dev/pricing
-const PRICING = {
-    inputPerMToken: 1.25,   // $1.25 per 1M input tokens (≤200K)
-    outputPerMToken: 10.0,  // $10 per 1M output tokens (≤200K)
-    tokensPerImage: 258,    // ~258 tokens per image
-    avgPromptTokens: 500,   // average prompt text tokens
-    avgOutputTokens: 4000,  // average output tokens per response
+// ─── Gemini Models & Pricing ───
+const MODELS = {
+    flash: {
+        id: 'gemini-2.5-flash-preview-05-20',
+        label: 'Gemini 2.5 Flash',
+        inputPerMToken: 0.15,
+        outputPerMToken: 0.60,
+    },
+    pro: {
+        id: 'gemini-2.5-pro-preview-05-06',
+        label: 'Gemini 2.5 Pro',
+        inputPerMToken: 1.25,
+        outputPerMToken: 10.0,
+    },
 };
+
+function getModel() {
+    const key = localStorage.getItem('gemini_model') || 'flash';
+    return MODELS[key] || MODELS.flash;
+}
+
+function getPricing() {
+    const model = getModel();
+    return {
+        inputPerMToken: model.inputPerMToken,
+        outputPerMToken: model.outputPerMToken,
+        tokensPerImage: 258,
+        avgPromptTokens: 500,
+        avgOutputTokens: 4000,
+    };
+}
 
 // ─── State ───
 let state = {
@@ -344,10 +378,11 @@ function recentKey() { return 'recent_files'; }
 
 // ─── Cost Estimation ───
 function estimateCost(numImages, isOutput = true) {
-    const inputTokens = (numImages * PRICING.tokensPerImage) + PRICING.avgPromptTokens;
-    const outputTokens = isOutput ? PRICING.avgOutputTokens : 0;
-    const inputCost = (inputTokens / 1_000_000) * PRICING.inputPerMToken;
-    const outputCost = (outputTokens / 1_000_000) * PRICING.outputPerMToken;
+    const pricing = getPricing();
+    const inputTokens = (numImages * pricing.tokensPerImage) + pricing.avgPromptTokens;
+    const outputTokens = isOutput ? pricing.avgOutputTokens : 0;
+    const inputCost = (inputTokens / 1_000_000) * pricing.inputPerMToken;
+    const outputCost = (outputTokens / 1_000_000) * pricing.outputPerMToken;
     return { inputTokens, outputTokens, inputCost, outputCost, total: inputCost + outputCost };
 }
 
@@ -406,7 +441,11 @@ function showCostConfirm(numPages, hasCachedSummary, cachedSlides) {
     return new Promise((resolve) => {
         const estimate = estimateFullPdfCost(numPages, hasCachedSummary, cachedSlides);
 
-        let html = '';
+        const model = getModel();
+        let html = `<div class="cost-row" style="margin-bottom:8px;">
+            <span class="cost-label">${t('modelLabel')}</span>
+            <span class="cost-value" style="color:var(--accent);">${model.label}</span>
+        </div>`;
         for (const item of estimate.items) {
             if (item.cached) {
                 html += `<div class="cost-row">
@@ -524,7 +563,8 @@ async function callGemini(contents, systemInstruction) {
         throw new Error('API key not set');
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent?key=${state.apiKey}`;
+    const model = getModel();
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model.id}:generateContent?key=${state.apiKey}`;
 
     const body = {
         contents,
@@ -567,8 +607,9 @@ async function callGemini(contents, systemInstruction) {
     // Track cost from usage metadata if available
     const usage = json.usageMetadata;
     if (usage) {
-        const inputCost = ((usage.promptTokenCount || 0) / 1_000_000) * PRICING.inputPerMToken;
-        const outputCost = ((usage.candidatesTokenCount || 0) / 1_000_000) * PRICING.outputPerMToken;
+        const pricing = getPricing();
+        const inputCost = ((usage.promptTokenCount || 0) / 1_000_000) * pricing.inputPerMToken;
+        const outputCost = ((usage.candidatesTokenCount || 0) / 1_000_000) * pricing.outputPerMToken;
         state.sessionCost += inputCost + outputCost;
         updateCostDisplay();
     }
@@ -988,6 +1029,7 @@ function showRecentFiles() {
 
 function openSettings() {
     $('api-key-input').value = state.apiKey;
+    $('model-select').value = localStorage.getItem('gemini_model') || 'flash';
     $('prompt-summary').value = state.prompts.summary;
     $('prompt-slide').value = state.prompts.slide;
     $('prompt-qa').value = state.prompts.qa;
@@ -1042,6 +1084,8 @@ $('btn-save-settings').addEventListener('click', () => {
     state.apiKey = $('api-key-input').value.trim();
     localStorage.setItem('gemini_api_key', state.apiKey);
 
+    localStorage.setItem('gemini_model', $('model-select').value);
+
     state.prompts.summary = $('prompt-summary').value;
     state.prompts.slide = $('prompt-slide').value;
     state.prompts.qa = $('prompt-qa').value;
@@ -1054,9 +1098,11 @@ $('btn-clear-all').addEventListener('click', () => {
     if (confirm(t('confirmClearAll'))) {
         const apiKey = localStorage.getItem('gemini_api_key');
         const lang = localStorage.getItem('lang');
+        const model = localStorage.getItem('gemini_model');
         localStorage.clear();
         if (apiKey) localStorage.setItem('gemini_api_key', apiKey);
         if (lang) localStorage.setItem('lang', lang);
+        if (model) localStorage.setItem('gemini_model', model);
         alert(t('deleted'));
         showRecentFiles();
     }

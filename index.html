@@ -116,6 +116,13 @@
                         </div>
                     </div>
                     <div class="setting-group">
+                        <label data-i18n="modelLabel">AI 모델</label>
+                        <select id="model-select" class="model-select">
+                            <option value="flash" data-i18n="modelFlash">Flash (빠르고 저렴)</option>
+                            <option value="pro" data-i18n="modelPro">Pro (고성능)</option>
+                        </select>
+                    </div>
+                    <div class="setting-group">
                         <label data-i18n="summaryPromptLabel">전체 요약 프롬프트</label>
                         <textarea id="prompt-summary" rows="4"></textarea>
                     </div>
