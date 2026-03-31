@@ -331,20 +331,20 @@ const MODELS = {
     'flash-lite': {
         id: 'gemini-3.1-flash-lite-preview',
         label: 'Gemini 3.1 Flash Lite',
-        inputPerMToken: 0.02,
-        outputPerMToken: 0.10,
+        inputPerMToken: 0.25,
+        outputPerMToken: 1.50,
     },
     flash: {
         id: 'gemini-3-flash-preview',
         label: 'Gemini 3 Flash',
-        inputPerMToken: 0.10,
-        outputPerMToken: 0.40,
+        inputPerMToken: 0.50,
+        outputPerMToken: 3.00,
     },
     pro: {
         id: 'gemini-3.1-pro-preview',
         label: 'Gemini 3.1 Pro',
-        inputPerMToken: 1.25,
-        outputPerMToken: 10.0,
+        inputPerMToken: 2.00,
+        outputPerMToken: 12.00,
     },
 };
 
