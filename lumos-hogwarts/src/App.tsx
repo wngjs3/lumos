@@ -459,6 +459,10 @@ export default function App() {
               })}
             </div>
           )}
+
+          <footer className="landing-footer">
+            Logo inspired by <a href="https://ukint-vs.github.io/" target="_blank" rel="noopener noreferrer">ukint-vs.github.io</a>
+          </footer>
         </main>
       </div>
     );

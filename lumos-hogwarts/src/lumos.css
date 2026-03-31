@@ -328,6 +328,20 @@ body {
   color: var(--text);
 }
 
+/* ── Landing footer ── */
+.landing-footer {
+  margin-top: 40px;
+  font-size: 0.62rem;
+  color: var(--border);
+  letter-spacing: 0.02em;
+}
+.landing-footer a {
+  color: var(--border);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.landing-footer a:hover { color: var(--text-dim); }
+
 /* ── Recent files ── */
 .recent {
   width: 100%; max-width: 480px;
