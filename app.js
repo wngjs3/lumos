@@ -2,8 +2,225 @@
 const pdfjsLib = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs');
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
 
+// ─── i18n (Internationalization) ───
+let currentLang = localStorage.getItem('lang') || 'ko';
+
+const TRANSLATIONS = {
+    ko: {
+        // HTML static text
+        title: 'AI 강의자료 학습 도우미',
+        headerTitle: 'AI 강의자료 학습 도우미',
+        settings: '설정',
+        uploadTitle: '강의 PDF를 업로드하세요',
+        uploadSub: '파일을 드래그하거나 클릭하여 선택',
+        recentFiles: '최근 파일',
+        filename: '파일명',
+        goHome: '홈으로',
+        progressDefault: '0/0 완료',
+        costDefault: '누적 비용: $0.000',
+        originalSlide: '원본 슬라이드',
+        aiExplanation: 'AI 설명',
+        refreshExplanation: '설명 새로고침',
+        selectSlideHint: '슬라이드를 선택하면 AI 설명이 표시됩니다.',
+        qna: '질의응답',
+        clearChat: '대화 초기화',
+        chatPlaceholder: '이 슬라이드에 대해 질문하세요...',
+        send: '전송',
+        estimatedCost: '예상 API 비용',
+        costDisclaimer: '* Gemini API 공식 가격 기준 추정치입니다. 실제 비용은 다를 수 있습니다.',
+        cancel: '취소',
+        proceed: '진행',
+        processing: '처리 중...',
+        summaryPromptLabel: '전체 요약 프롬프트',
+        slidePromptLabel: '슬라이드별 설명 프롬프트',
+        slidePromptHint: '사용 가능한 변수: {summary} = 전체 요약, {slideNumber} = 슬라이드 번호, {totalSlides} = 총 슬라이드 수',
+        qaPromptLabel: '질의응답 시스템 프롬프트',
+        qaPromptHint: '사용 가능한 변수: {summary} = 전체 요약, {slideNumber} = 슬라이드 번호, {explanation} = AI 설명',
+        dataManagement: '데이터 관리',
+        clearAllData: '모든 저장 데이터 삭제',
+        save: '저장',
+        apiKeyPlaceholder: 'API Key를 입력하세요',
+        // Dynamic JS strings
+        sessionCost: '이번 세션 비용:',
+        currentSessionCost: '현재 세션 비용:',
+        accumulatedCost: '누적 비용:',
+        summaryLabel: '전체 요약',
+        summaryWithImages: '전체 요약 (이미지 {n}장)',
+        slideExplanation: '슬라이드 설명',
+        slidesUncached: '슬라이드 설명 ({n}장 미생성)',
+        slidesCached: '슬라이드 설명 ({n}장 캐시됨)',
+        estimatedTotal: '예상 총 비용',
+        cachedFree: '캐시 사용 (무료)',
+        allCachedMsg: '모든 데이터가 캐시되어 있어 추가 비용이 없습니다!',
+        progressDone: '{done}/{total} 완료',
+        renderingImages: '슬라이드 이미지 생성 중...',
+        renderingSlide: '슬라이드 렌더링 ({current}/{total})',
+        generatingSummary: '전체 강의 요약 생성 중...',
+        preparingApi: 'Gemini API 호출 준비',
+        callingApi: 'Gemini API 호출 중 ({n}장 분석)',
+        summaryDone: '요약 완료!',
+        preparing: '준비 중...',
+        summaryFailed: '요약 생성 실패:',
+        summaryFailedPlaceholder: '(요약 생성 실패)',
+        generatingExplanation: '설명 생성 중',
+        regeneratingExplanation: '설명 재생성 중',
+        explanationFailed: '설명 생성 실패:',
+        failed: '실패:',
+        explainSlide: '이 슬라이드를 설명해주세요.',
+        slideLabel: '슬라이드',
+        askAboutSlide: '이 슬라이드에 대해 궁금한 점을 물어보세요.',
+        waitingResponse: '응답 대기중...',
+        errorPrefix: '오류:',
+        noResponse: '(응답 없음)',
+        alertSetApiKey: 'Gemini API Key를 설정해주세요.',
+        alertSetApiKeyStart: '시작하려면 Gemini API Key를 설정해주세요.',
+        requestTimeout: '요청 시간 초과 (2분). 다시 시도해주세요.',
+        networkError: '네트워크 오류: 인터넷 연결을 확인해주세요.',
+        apiError: 'API 오류',
+        reuploadAlert: '같은 PDF 파일을 다시 선택해주세요. 이전 분석 결과가 자동으로 로드됩니다.',
+        confirmClearAll: '모든 저장된 데이터를 삭제하시겠습니까? (API키 제외)',
+        deleted: '삭제되었습니다.',
+        confirmClearChat: '이 슬라이드의 대화 내역을 삭제하시겠습니까?',
+        delete: '삭제',
+        done: '완료',
+        pages: '장',
+        elapsedTime: '경과 시간:',
+        minutes: '분',
+        seconds: '초',
+    },
+    en: {
+        title: 'AI Lecture Study Assistant',
+        headerTitle: 'AI Lecture Study Assistant',
+        settings: 'Settings',
+        uploadTitle: 'Upload your lecture PDF',
+        uploadSub: 'Drag & drop or click to select',
+        recentFiles: 'Recent Files',
+        filename: 'Filename',
+        goHome: 'Home',
+        progressDefault: '0/0 done',
+        costDefault: 'Total cost: $0.000',
+        originalSlide: 'Original Slide',
+        aiExplanation: 'AI Explanation',
+        refreshExplanation: 'Refresh explanation',
+        selectSlideHint: 'Select a slide to see the AI explanation.',
+        qna: 'Q&A',
+        clearChat: 'Clear chat',
+        chatPlaceholder: 'Ask a question about this slide...',
+        send: 'Send',
+        estimatedCost: 'Estimated API Cost',
+        costDisclaimer: '* Estimated based on official Gemini API pricing. Actual costs may vary.',
+        cancel: 'Cancel',
+        proceed: 'Proceed',
+        processing: 'Processing...',
+        summaryPromptLabel: 'Full Summary Prompt',
+        slidePromptLabel: 'Per-Slide Explanation Prompt',
+        slidePromptHint: 'Available variables: {summary} = full summary, {slideNumber} = slide number, {totalSlides} = total slides',
+        qaPromptLabel: 'Q&A System Prompt',
+        qaPromptHint: 'Available variables: {summary} = full summary, {slideNumber} = slide number, {explanation} = AI explanation',
+        dataManagement: 'Data Management',
+        clearAllData: 'Delete all saved data',
+        save: 'Save',
+        apiKeyPlaceholder: 'Enter your API Key',
+        sessionCost: 'Session cost:',
+        currentSessionCost: 'Session cost:',
+        accumulatedCost: 'Total cost:',
+        summaryLabel: 'Full Summary',
+        summaryWithImages: 'Full Summary ({n} images)',
+        slideExplanation: 'Slide Explanation',
+        slidesUncached: 'Slide explanations ({n} not generated)',
+        slidesCached: 'Slide explanations ({n} cached)',
+        estimatedTotal: 'Estimated Total',
+        cachedFree: 'Cached (free)',
+        allCachedMsg: 'All data is cached. No additional cost!',
+        progressDone: '{done}/{total} done',
+        renderingImages: 'Generating slide images...',
+        renderingSlide: 'Rendering slides ({current}/{total})',
+        generatingSummary: 'Generating full lecture summary...',
+        preparingApi: 'Preparing Gemini API call',
+        callingApi: 'Calling Gemini API ({n} images)',
+        summaryDone: 'Summary complete!',
+        preparing: 'Preparing...',
+        summaryFailed: 'Summary generation failed:',
+        summaryFailedPlaceholder: '(Summary generation failed)',
+        generatingExplanation: 'Generating explanation',
+        regeneratingExplanation: 'Regenerating explanation',
+        explanationFailed: 'Explanation failed:',
+        failed: 'Failed:',
+        explainSlide: 'Please explain this slide.',
+        slideLabel: 'Slide',
+        askAboutSlide: 'Ask a question about this slide.',
+        waitingResponse: 'Waiting for response...',
+        errorPrefix: 'Error:',
+        noResponse: '(No response)',
+        alertSetApiKey: 'Please set your Gemini API Key.',
+        alertSetApiKeyStart: 'Please set your Gemini API Key to get started.',
+        requestTimeout: 'Request timed out (2 min). Please try again.',
+        networkError: 'Network error: Please check your internet connection.',
+        apiError: 'API Error',
+        reuploadAlert: 'Please select the same PDF file again. Previous analysis will be loaded automatically.',
+        confirmClearAll: 'Delete all saved data? (API key will be kept)',
+        deleted: 'Data deleted.',
+        confirmClearChat: 'Delete chat history for this slide?',
+        delete: 'Delete',
+        done: 'done',
+        pages: 'pages',
+        elapsedTime: 'Elapsed:',
+        minutes: 'min',
+        seconds: 'sec',
+    }
+};
+
+function t(key, replacements) {
+    let str = TRANSLATIONS[currentLang]?.[key] || TRANSLATIONS['ko'][key] || key;
+    if (replacements) {
+        for (const [k, v] of Object.entries(replacements)) {
+            str = str.replace(`{${k}}`, v);
+        }
+    }
+    return str;
+}
+
+function applyLanguage() {
+    // Update HTML lang attribute
+    const htmlEl = document.getElementById('html-root');
+    if (htmlEl) htmlEl.lang = currentLang;
+
+    // Update all data-i18n text content
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        el.textContent = t(key);
+    });
+
+    // Update all data-i18n-title attributes
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        const key = el.getAttribute('data-i18n-title');
+        el.title = t(key);
+    });
+
+    // Update all data-i18n-placeholder attributes
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        el.placeholder = t(key);
+    });
+
+    // Update document title
+    document.title = t('title');
+
+    // Update lang toggle button text
+    const langBtn = document.getElementById('btn-lang');
+    if (langBtn) {
+        langBtn.textContent = currentLang === 'ko' ? 'EN' : 'KO';
+    }
+}
+
+function toggleLanguage() {
+    currentLang = currentLang === 'ko' ? 'en' : 'ko';
+    localStorage.setItem('lang', currentLang);
+    applyLanguage();
+}
+
 // ─── Default Prompts ───
-const DEFAULT_PROMPTS = {
+const DEFAULT_PROMPTS_KO = {
     summary: `당신은 대학교 강의 자료를 분석하는 교육 전문가입니다.
 주어진 강의 PDF의 모든 슬라이드를 분석하고, 이 강의의 전체적인 내용을 체계적으로 요약해주세요.
 
@@ -49,6 +266,56 @@ const DEFAULT_PROMPTS = {
 4. 한국어로 답변`
 };
 
+const DEFAULT_PROMPTS_EN = {
+    summary: `You are an educational expert who analyzes university lecture materials.
+Analyze all slides of the given lecture PDF and provide a systematic summary of the entire lecture.
+
+Include in the summary:
+1. The topic and objectives of the lecture
+2. Key concepts and core content
+3. Content flow by section/part
+4. Important keywords and terminology
+
+Please write in English.`,
+
+    slide: `You are a friendly professor who explains concepts so that even a high school student can understand.
+
+Summary of the entire lecture:
+{summary}
+
+Current slide: #{slideNumber} (out of {totalSlides} total)
+
+Explain this slide following these rules:
+1. Explain as if teaching a high school student - keep it simple and friendly
+2. When technical terms appear, always explain them in plain language
+3. Use analogies or examples when possible
+4. Briefly mention where this slide fits in the overall lecture context
+5. Clearly highlight the key points
+6. Write in clean markdown format
+7. Math formulas must be in LaTeX (inline: $formula$, block: $$formula$$)
+
+Please write in English.`,
+
+    qa: `You are a friendly professor teaching this lecture. Answer student questions clearly and accurately.
+
+Full lecture summary:
+{summary}
+
+Current slide: #{slideNumber}
+AI explanation for this slide:
+{explanation}
+
+When answering:
+1. Explain simply enough for a high school student
+2. Use examples or analogies when needed
+3. Relate your answer to the slide content
+4. Answer in English`
+};
+
+function getDefaultPrompts() {
+    return currentLang === 'ko' ? { ...DEFAULT_PROMPTS_KO } : { ...DEFAULT_PROMPTS_EN };
+}
+
 // ─── Gemini Pricing (per 1M tokens) ───
 // Gemini 2.5 Pro pricing: https://ai.google.dev/pricing
 const PRICING = {
@@ -62,7 +329,7 @@ const PRICING = {
 // ─── State ───
 let state = {
     apiKey: localStorage.getItem('gemini_api_key') || '',
-    prompts: JSON.parse(localStorage.getItem('custom_prompts') || 'null') || { ...DEFAULT_PROMPTS },
+    prompts: JSON.parse(localStorage.getItem('custom_prompts') || 'null') || getDefaultPrompts(),
     currentPdf: null,       // { name, hash, numPages }
     currentSlide: 0,        // 0-indexed
     pdfDoc: null,
@@ -91,10 +358,10 @@ function estimateFullPdfCost(numPages, hasCachedSummary, cachedSlides) {
     // Summary cost (all images in one call)
     if (!hasCachedSummary) {
         const summaryCost = estimateCost(numPages);
-        items.push({ label: `전체 요약 (이미지 ${numPages}장)`, cost: summaryCost.total, cached: false });
+        items.push({ label: t('summaryWithImages', { n: numPages }), cost: summaryCost.total, cached: false });
         total += summaryCost.total;
     } else {
-        items.push({ label: '전체 요약', cost: 0, cached: true });
+        items.push({ label: t('summaryLabel'), cost: 0, cached: true });
     }
 
     // Per-slide explanation cost
@@ -102,11 +369,11 @@ function estimateFullPdfCost(numPages, hasCachedSummary, cachedSlides) {
     if (uncachedSlides > 0) {
         const perSlide = estimateCost(1);
         const slidesCost = perSlide.total * uncachedSlides;
-        items.push({ label: `슬라이드 설명 (${uncachedSlides}장 미생성)`, cost: slidesCost, cached: false });
+        items.push({ label: t('slidesUncached', { n: uncachedSlides }), cost: slidesCost, cached: false });
         total += slidesCost;
     }
     if (cachedSlides > 0) {
-        items.push({ label: `슬라이드 설명 (${cachedSlides}장 캐시됨)`, cost: 0, cached: true });
+        items.push({ label: t('slidesCached', { n: cachedSlides }), cost: 0, cached: true });
     }
 
     return { items, total };
@@ -121,11 +388,11 @@ function updateCostDisplay() {
     const el = $('cost-info');
     if (el) {
         el.style.display = 'block';
-        $('cost-text').textContent = `이번 세션 비용: ${formatCost(state.sessionCost)}`;
+        $('cost-text').textContent = `${t('sessionCost')} ${formatCost(state.sessionCost)}`;
     }
     const loadingCost = $('loading-cost');
     if (loadingCost) {
-        loadingCost.textContent = `현재 세션 비용: ${formatCost(state.sessionCost)}`;
+        loadingCost.textContent = `${t('currentSessionCost')} ${formatCost(state.sessionCost)}`;
     }
 }
 
@@ -144,7 +411,7 @@ function showCostConfirm(numPages, hasCachedSummary, cachedSlides) {
             if (item.cached) {
                 html += `<div class="cost-row">
                     <span class="cost-label">${item.label}</span>
-                    <span class="cost-cached">캐시 사용 (무료)</span>
+                    <span class="cost-cached">${t('cachedFree')}</span>
                 </div>`;
             } else {
                 html += `<div class="cost-row">
@@ -154,12 +421,12 @@ function showCostConfirm(numPages, hasCachedSummary, cachedSlides) {
             }
         }
         html += `<div class="cost-row cost-total">
-            <span>예상 총 비용</span>
+            <span>${t('estimatedTotal')}</span>
             <span>${formatCost(estimate.total)}</span>
         </div>`;
 
         if (estimate.total === 0) {
-            html += `<p class="cost-cached" style="margin-top:12px;text-align:center;">모든 데이터가 캐시되어 있어 추가 비용이 없습니다!</p>`;
+            html += `<p class="cost-cached" style="margin-top:12px;text-align:center;">${t('allCachedMsg')}</p>`;
         }
 
         $('cost-breakdown').innerHTML = html;
@@ -252,7 +519,7 @@ function renderMath(el) {
 // ─── Gemini API ───
 async function callGemini(contents, systemInstruction) {
     if (!state.apiKey) {
-        alert('Gemini API Key를 설정해주세요.');
+        alert(t('alertSetApiKey'));
         openSettings();
         throw new Error('API key not set');
     }
@@ -284,15 +551,15 @@ async function callGemini(contents, systemInstruction) {
         clearTimeout(timeout);
     } catch (e) {
         if (e.name === 'AbortError') {
-            throw new Error('요청 시간 초과 (2분). 다시 시도해주세요.');
+            throw new Error(t('requestTimeout'));
         }
-        throw new Error(`네트워크 오류: 인터넷 연결을 확인해주세요. (${e.message})`);
+        throw new Error(`${t('networkError')} (${e.message})`);
     }
 
     if (!resp.ok) {
         const err = await resp.text();
         console.error('Gemini API error:', err);
-        throw new Error(`API 오류 (${resp.status}): ${err}`);
+        throw new Error(`${t('apiError')} (${resp.status}): ${err}`);
     }
 
     const json = await resp.json();
@@ -306,7 +573,7 @@ async function callGemini(contents, systemInstruction) {
         updateCostDisplay();
     }
 
-    return json.candidates?.[0]?.content?.parts?.[0]?.text || '(응답 없음)';
+    return json.candidates?.[0]?.content?.parts?.[0]?.text || t('noResponse');
 }
 
 // ─── PDF Processing ───
@@ -332,11 +599,11 @@ async function loadPdf(file) {
     const totalSteps = pdfDoc.numPages + (state.data.summary ? 0 : 1); // images + summary
     let currentStep = 0;
 
-    showLoading('슬라이드 이미지 생성 중...', `슬라이드 렌더링 (0/${pdfDoc.numPages})`, 0);
+    showLoading(t('renderingImages'), t('renderingSlide', { current: 0, total: pdfDoc.numPages }), 0);
     for (let i = 0; i < pdfDoc.numPages; i++) {
         updateLoading(
-            '슬라이드 이미지 생성 중...',
-            `슬라이드 렌더링 (${i + 1}/${pdfDoc.numPages})`,
+            t('renderingImages'),
+            t('renderingSlide', { current: i + 1, total: pdfDoc.numPages }),
             (i + 1) / pdfDoc.numPages * 0.3  // images = 30% of total
         );
         const page = await pdfDoc.getPage(i + 1);
@@ -367,7 +634,7 @@ async function loadPdf(file) {
 
     // Generate summary if not cached
     if (!state.data.summary) {
-        showLoading('전체 강의 요약 생성 중...', 'Gemini API 호출 준비', 0.3);
+        showLoading(t('generatingSummary'), t('preparingApi'), 0.3);
         await generateSummary();
     }
 
@@ -377,8 +644,8 @@ async function loadPdf(file) {
 
 async function generateSummary() {
     updateLoading(
-        '전체 강의 요약 생성 중...',
-        `Gemini API 호출 중 (${state.slideImages.length}장 분석)`,
+        t('generatingSummary'),
+        t('callingApi', { n: state.slideImages.length }),
         0.35
     );
 
@@ -386,7 +653,7 @@ async function generateSummary() {
 
     // Add all slide images
     for (let i = 0; i < state.slideImages.length; i++) {
-        parts.push({ text: `\n--- 슬라이드 ${i + 1} ---` });
+        parts.push({ text: `\n--- ${t('slideLabel')} ${i + 1} ---` });
         parts.push({
             inlineData: {
                 mimeType: 'image/jpeg',
@@ -405,11 +672,11 @@ async function generateSummary() {
 
         state.data.summary = await callGemini([{ role: 'user', parts }]);
         clearInterval(pulseInterval);
-        updateLoading('요약 완료!', '준비 중...', 1.0);
+        updateLoading(t('summaryDone'), t('preparing'), 1.0);
         saveData();
     } catch (e) {
-        alert('요약 생성 실패: ' + e.message);
-        state.data.summary = '(요약 생성 실패)';
+        alert(t('summaryFailed') + ' ' + e.message);
+        state.data.summary = t('summaryFailedPlaceholder');
     }
 }
 
@@ -421,7 +688,7 @@ async function generateSlideExplanation(slideIdx) {
         .replace('{totalSlides}', String(state.currentPdf.numPages));
 
     const parts = [
-        { text: '이 슬라이드를 설명해주세요.' },
+        { text: t('explainSlide') },
         {
             inlineData: {
                 mimeType: 'image/jpeg',
@@ -512,9 +779,9 @@ function showLoading(text, step, progress) {
             const elapsed = Math.floor((Date.now() - loadingStartTime) / 1000);
             const min = Math.floor(elapsed / 60);
             const sec = elapsed % 60;
-            $('loading-timer').textContent = `경과 시간: ${min > 0 ? min + '분 ' : ''}${sec}초`;
+            $('loading-timer').textContent = `${t('elapsedTime')} ${min > 0 ? min + t('minutes') + ' ' : ''}${sec}${t('seconds')}`;
         }, 1000);
-        $('loading-timer').textContent = '경과 시간: 0초';
+        $('loading-timer').textContent = `${t('elapsedTime')} 0${t('seconds')}`;
     }
 
     $('loading-detail').style.display = 'block';
@@ -607,7 +874,7 @@ async function selectSlide(idx) {
         $('explanation-content').innerHTML = md(slide.explanation);
         renderMath($('explanation-content'));
     } else {
-        $('explanation-content').innerHTML = '<p class="placeholder">설명 생성 중<span class="loading-dots"></span></p>';
+        $('explanation-content').innerHTML = `<p class="placeholder">${t('generatingExplanation')}<span class="loading-dots"></span></p>`;
         try {
             const explanation = await generateSlideExplanation(idx);
             if (state.currentSlide === idx) {
@@ -619,7 +886,7 @@ async function selectSlide(idx) {
             updateProgress();
         } catch (e) {
             if (state.currentSlide === idx) {
-                $('explanation-content').innerHTML = `<p class="placeholder" style="color:var(--danger);">설명 생성 실패: ${e.message}</p>`;
+                $('explanation-content').innerHTML = `<p class="placeholder" style="color:var(--danger);">${t('explanationFailed')} ${e.message}</p>`;
             }
         }
     }
@@ -634,7 +901,7 @@ function renderChat() {
     chatEl.innerHTML = '';
 
     if (!slide?.chat?.length) {
-        chatEl.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:8px;">이 슬라이드에 대해 궁금한 점을 물어보세요.</p>';
+        chatEl.innerHTML = `<p style="color:var(--text-dim);font-size:13px;padding:8px;">${t('askAboutSlide')}</p>`;
         return;
     }
 
@@ -661,7 +928,7 @@ function escapeHtml(text) {
 function updateProgress() {
     const done = state.data.slides.filter(s => s?.explanation).length;
     const total = state.currentPdf.numPages;
-    $('progress-text').textContent = `${done}/${total} 완료`;
+    $('progress-text').textContent = t('progressDone', { done, total });
     $('progress-fill').style.width = `${(done / total) * 100}%`;
 }
 
@@ -682,7 +949,8 @@ function showRecentFiles() {
         const div = document.createElement('div');
         div.className = 'recent-item';
 
-        const dateStr = new Date(item.date).toLocaleDateString('ko-KR');
+        const dateLocale = currentLang === 'ko' ? 'ko-KR' : 'en-US';
+        const dateStr = new Date(item.date).toLocaleDateString(dateLocale);
         const cached = localStorage.getItem(storageKey(item.hash));
         const data = cached ? JSON.parse(cached) : null;
         const doneCount = data ? data.slides.filter(s => s?.explanation).length : 0;
@@ -690,17 +958,17 @@ function showRecentFiles() {
         div.innerHTML = `
             <div class="recent-item-info">
                 <span class="recent-item-name">${escapeHtml(item.name)}</span>
-                <span class="recent-item-date">${dateStr} · ${item.numPages}장 · ${doneCount}/${item.numPages} 완료</span>
+                <span class="recent-item-date">${dateStr} · ${item.numPages} ${t('pages')} · ${doneCount}/${item.numPages} ${t('done')}</span>
             </div>
             <div class="recent-item-actions">
-                <button class="delete-btn" data-hash="${item.hash}" title="삭제">&#128465;</button>
+                <button class="delete-btn" data-hash="${item.hash}" title="${t('delete')}">&#128465;</button>
             </div>
         `;
 
         div.addEventListener('click', (e) => {
             if (e.target.closest('.delete-btn')) return;
             // Need to re-upload same file
-            alert('같은 PDF 파일을 다시 선택해주세요. 이전 분석 결과가 자동으로 로드됩니다.');
+            alert(t('reuploadAlert'));
             $('pdf-input').click();
         });
 
@@ -783,11 +1051,13 @@ $('btn-save-settings').addEventListener('click', () => {
 });
 
 $('btn-clear-all').addEventListener('click', () => {
-    if (confirm('모든 저장된 데이터를 삭제하시겠습니까? (API키 제외)')) {
+    if (confirm(t('confirmClearAll'))) {
         const apiKey = localStorage.getItem('gemini_api_key');
+        const lang = localStorage.getItem('lang');
         localStorage.clear();
         if (apiKey) localStorage.setItem('gemini_api_key', apiKey);
-        alert('삭제되었습니다.');
+        if (lang) localStorage.setItem('lang', lang);
+        alert(t('deleted'));
         showRecentFiles();
     }
 });
@@ -798,7 +1068,7 @@ $('btn-refresh-explanation').addEventListener('click', async () => {
     const idx = state.currentSlide;
     state.data.slides[idx].explanation = null;
     saveData();
-    $('explanation-content').innerHTML = '<p class="placeholder">설명 재생성 중<span class="loading-dots"></span></p>';
+    $('explanation-content').innerHTML = `<p class="placeholder">${t('regeneratingExplanation')}<span class="loading-dots"></span></p>`;
     try {
         const explanation = await generateSlideExplanation(idx);
         if (state.currentSlide === idx) {
@@ -806,7 +1076,7 @@ $('btn-refresh-explanation').addEventListener('click', async () => {
             renderMath($('explanation-content'));
         }
     } catch (e) {
-        $('explanation-content').innerHTML = `<p class="placeholder" style="color:var(--danger);">실패: ${e.message}</p>`;
+        $('explanation-content').innerHTML = `<p class="placeholder" style="color:var(--danger);">${t('failed')} ${e.message}</p>`;
     }
 });
 
@@ -841,7 +1111,7 @@ async function sendChat() {
     // Disable input
     input.disabled = true;
     $('btn-send').disabled = true;
-    $('btn-send').textContent = '응답 대기중...';
+    $('btn-send').textContent = t('waitingResponse');
 
     // Remove the user message we just added (askQuestion will add it again)
     state.data.slides[idx].chat.pop();
@@ -852,21 +1122,21 @@ async function sendChat() {
     } catch (e) {
         // Re-add user message and error
         state.data.slides[idx].chat.push({ role: 'user', text: question });
-        state.data.slides[idx].chat.push({ role: 'ai', text: `오류: ${e.message}` });
+        state.data.slides[idx].chat.push({ role: 'ai', text: `${t('errorPrefix')} ${e.message}` });
         saveData();
         if (state.currentSlide === idx) renderChat();
     }
 
     input.disabled = false;
     $('btn-send').disabled = false;
-    $('btn-send').textContent = '전송';
+    $('btn-send').textContent = t('send');
     input.focus();
 }
 
 // Clear chat
 $('btn-clear-chat').addEventListener('click', () => {
     if (!state.currentPdf) return;
-    if (confirm('이 슬라이드의 대화 내역을 삭제하시겠습니까?')) {
+    if (confirm(t('confirmClearChat'))) {
         state.data.slides[state.currentSlide].chat = [];
         saveData();
         renderChat();
@@ -916,13 +1186,17 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// ─── Language Toggle ───
+$('btn-lang').addEventListener('click', toggleLanguage);
+
 // ─── Init ───
+applyLanguage();
 showRecentFiles();
 
 // Check if API key is set
 if (!state.apiKey) {
     setTimeout(() => {
-        alert('시작하려면 Gemini API Key를 설정해주세요.');
+        alert(t('alertSetApiKeyStart'));
         openSettings();
     }, 500);
 }
