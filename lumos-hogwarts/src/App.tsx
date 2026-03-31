@@ -195,6 +195,70 @@ function SettingsIcon() {
   );
 }
 
+// ─── i18n ───
+const T = {
+  en: {
+    tagline: 'Explore knowledge to the end.',
+    uploadText: 'Drag & drop or click to upload PDF',
+    recentFiles: 'Recent Files',
+    pages: 'pages',
+    done: 'done',
+    settings: 'Settings',
+    apiKeyLabel: 'Gemini API Key',
+    modelLabel: 'Model',
+    save: 'Save',
+    loading: 'Loading PDF...',
+    fileAnalysis: 'Analyzing file',
+    renderingSlide: (c: number, t: number) => `Rendering slide (${c}/${t})`,
+    generatingSummary: 'Generating summary...',
+    apiCall: (n: number) => `Gemini API call (${n} slides)`,
+    summaryDone: 'Summary complete!',
+    costTitle: 'Estimated API Cost',
+    costModel: 'Model',
+    costTotal: 'Estimated total',
+    costCached: 'Cached (free)',
+    costAllCached: 'All data is cached — no additional cost!',
+    costDisclaimer: '* Estimate based on official Gemini API pricing. Actual cost may vary.',
+    cancel: 'Cancel',
+    proceed: 'Proceed',
+    setApiKey: 'Please set your Gemini API Key first.',
+    noCachedPdf: 'Cached PDF not found. Please re-upload the file.',
+    error: 'Error',
+    footer: 'Designed by Juheon Choi · Logo inspired by',
+  },
+  ko: {
+    tagline: '지식을 끝까지 탐구하세요.',
+    uploadText: 'PDF를 드래그하거나 클릭해 업로드',
+    recentFiles: '최근 파일',
+    pages: '장',
+    done: '완료',
+    settings: '설정',
+    apiKeyLabel: 'Gemini API Key',
+    modelLabel: '모델',
+    save: '저장',
+    loading: 'PDF 로드 중...',
+    fileAnalysis: '파일 분석',
+    renderingSlide: (c: number, t: number) => `슬라이드 렌더링 (${c}/${t})`,
+    generatingSummary: '전체 요약 생성 중...',
+    apiCall: (n: number) => `Gemini API 호출 (${n}장 분석)`,
+    summaryDone: '요약 완료!',
+    costTitle: '예상 API 비용',
+    costModel: '모델',
+    costTotal: '예상 총 비용',
+    costCached: '캐시 (무료)',
+    costAllCached: '모든 데이터가 캐시되어 있어 추가 비용이 없습니다!',
+    costDisclaimer: '* Gemini API 공식 가격 기준 추정치입니다. 실제 비용은 다를 수 있습니다.',
+    cancel: '취소',
+    proceed: '진행',
+    setApiKey: 'Gemini API Key를 먼저 설정해주세요.',
+    noCachedPdf: '캐시된 PDF를 찾을 수 없습니다. 파일을 다시 업로드해주세요.',
+    error: '오류',
+    footer: 'Designed by Juheon Choi · Logo inspired by',
+  },
+} as const;
+
+type Lang = keyof typeof T;
+
 // ─── Main App ───
 type AppView = "landing" | "loading" | "cost-confirm" | "viewer";
 
@@ -212,6 +276,13 @@ export default function App() {
   }, [theme]);
 
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
+
+  const [lang, setLang] = useState<Lang>(() =>
+    (localStorage.getItem('lang') as Lang) || 'en'
+  );
+  useEffect(() => { localStorage.setItem('lang', lang); }, [lang]);
+  const toggleLang = () => setLang(l => l === 'en' ? 'ko' : 'en');
+  const t = T[lang];
 
   // Settings
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
@@ -250,8 +321,8 @@ export default function App() {
   // Core loader — works with an ArrayBuffer (from file or cache)
   const loadPdfFromBuffer = useCallback(async (arrayBuffer: ArrayBuffer, fileName: string, hash: string) => {
     setView("loading");
-    setLoadingText("PDF 로드 중...");
-    setLoadingStep("파일 분석");
+    setLoadingText(t.loading);
+    setLoadingStep(t.fileAnalysis);
     setLoadingProgress(0);
 
     try {
@@ -265,7 +336,7 @@ export default function App() {
       // Render all pages as images
       const images: string[] = [];
       for (let i = 0; i < doc.numPages; i++) {
-        setLoadingStep(`슬라이드 렌더링 (${i + 1}/${doc.numPages})`);
+        setLoadingStep(t.renderingSlide(i + 1, doc.numPages));
         setLoadingProgress((i + 1) / doc.numPages * 0.4);
         const img = await renderPageToImage(doc, i + 1);
         images.push(img);
@@ -303,8 +374,8 @@ export default function App() {
       // Generate summary if not cached
       if (!data.summary) {
         setView("loading");
-        setLoadingText("전체 요약 생성 중...");
-        setLoadingStep(`Gemini API 호출 (${images.length}장 분석)`);
+        setLoadingText(t.generatingSummary);
+        setLoadingStep(t.apiCall(images.length));
         setLoadingProgress(0.5);
 
         const parts: any[] = [{ text: DEFAULT_PROMPTS.summary }];
@@ -319,13 +390,13 @@ export default function App() {
         setPdfData({ ...data });
 
         setLoadingProgress(1);
-        setLoadingText("요약 완료!");
+        setLoadingText(t.summaryDone);
       }
 
       // Go to viewer
       setView("viewer");
     } catch (e: any) {
-      alert(`오류: ${e.message}`);
+      alert(`${t.error}: ${e.message}`);
       setView("landing");
     }
   }, [apiKey, model]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -333,7 +404,7 @@ export default function App() {
   // File upload handler — reads file, caches buffer, then loads
   const handleFile = useCallback(async (file: File) => {
     if (!apiKey) {
-      alert('Gemini API Key를 먼저 설정해주세요.');
+      alert(t.setApiKey);
       setShowSettings(true);
       return;
     }
@@ -347,13 +418,13 @@ export default function App() {
   // Load from recent file cache
   const loadFromRecent = useCallback(async (rf: RecentFile) => {
     if (!apiKey) {
-      alert('Gemini API Key를 먼저 설정해주세요.');
+      alert(t.setApiKey);
       setShowSettings(true);
       return;
     }
     const buffer = await getCachedPdfBuffer(rf.hash);
     if (!buffer) {
-      alert('캐시된 PDF를 찾을 수 없습니다. 파일을 다시 업로드해주세요.');
+      alert(t.noCachedPdf);
       return;
     }
     await loadPdfFromBuffer(buffer, rf.name, rf.hash);
@@ -379,6 +450,9 @@ export default function App() {
         <header className="hdr">
           <div />
           <div className="hdr__actions">
+            <button className="hdr__lang" onClick={toggleLang}>
+              {lang === 'en' ? 'KO' : 'EN'}
+            </button>
             <button className="hdr__theme" onClick={toggleTheme} aria-label="테마 전환">
               {theme === 'dark' ? '☀' : '☾'}
             </button>
@@ -391,22 +465,22 @@ export default function App() {
         {showSettings && <div className="settings-scrim" onClick={() => setShowSettings(false)} />}
         {showSettings && (
           <div className="settings-panel">
-            <h3 className="sp__title">설정</h3>
+            <h3 className="sp__title">{t.settings}</h3>
             <div className="sp__field">
-              <label className="sp__label">Gemini API Key</label>
+              <label className="sp__label">{t.apiKeyLabel}</label>
               <input className="sp__input" type="password" placeholder="AIza..."
                 value={apiKey} onChange={e => setApiKey(e.target.value)} />
             </div>
             <div className="sp__divider" />
             <div className="sp__field">
-              <label className="sp__label">모델</label>
+              <label className="sp__label">{t.modelLabel}</label>
               <select className="sp__select" value={modelKey} onChange={e => setModelKey(e.target.value)}>
                 {Object.entries(MODELS).map(([k, m]) => (
                   <option key={k} value={k}>{m.label} — ${m.inputPerMToken} / ${m.outputPerMToken}</option>
                 ))}
               </select>
             </div>
-            <button className="sp__save" onClick={saveSettings}>저장</button>
+            <button className="sp__save" onClick={saveSettings}>{t.save}</button>
           </div>
         )}
 
@@ -414,7 +488,7 @@ export default function App() {
           <AsciiLogo text="Lumos" width={700} height={180} fontSize={140}
             charSize={8} step={2} repelRadius={110} repelForce={5}
             color={theme === 'dark' ? '#00ff88' : '#1a1c2e'} />
-          <p className="tagline">지식을 끝까지 탐구하세요.</p>
+          <p className="tagline">{t.tagline}</p>
 
           <div
             className={`upload ${isDragging ? "upload--drag" : ""}`}
@@ -430,13 +504,13 @@ export default function App() {
               <polyline points="17 8 12 3 7 8"/>
               <line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
-            <span className="upload__text">PDF를 드래그하거나 클릭해 업로드</span>
+            <span className="upload__text">{t.uploadText}</span>
           </div>
 
           {/* ── Recent files ── */}
           {recentFiles.length > 0 && (
             <div className="recent">
-              <h3 className="recent__title">최근 파일</h3>
+              <h3 className="recent__title">{t.recentFiles}</h3>
               {recentFiles.map(rf => {
                 const cached = loadCachedData(rf.hash);
                 const doneCount = cached ? cached.slides.filter((s: any) => s?.explanation).length : 0;
@@ -445,7 +519,7 @@ export default function App() {
                     <div className="recent__info">
                       <span className="recent__name">{rf.name}</span>
                       <span className="recent__meta">
-                        {new Date(rf.date).toLocaleDateString('ko-KR')} · {rf.numPages}장 · {doneCount}/{rf.numPages} 완료
+                        {new Date(rf.date).toLocaleDateString(lang === 'ko' ? 'ko-KR' : 'en-US')} · {rf.numPages} {t.pages} · {doneCount}/{rf.numPages} {t.done}
                       </span>
                     </div>
                     <button className="recent__delete" onClick={e => {
@@ -461,7 +535,12 @@ export default function App() {
           )}
 
           <footer className="landing-footer">
-            Designed by Juheon Choi · Logo inspired by <a href="https://ukint-vs.github.io/" target="_blank" rel="noopener noreferrer">ukint-vs.github.io</a>
+            <span className="landing-footer__credit">
+              Designed by <a href="https://juheonchoi.com" target="_blank" rel="noopener noreferrer">Juheon Choi</a>
+            </span>
+            <span className="landing-footer__sub">
+              Logo inspired by <a href="https://ukint-vs.github.io/" target="_blank" rel="noopener noreferrer">ukint-vs.github.io</a>
+            </span>
           </footer>
         </main>
       </div>
@@ -492,34 +571,34 @@ export default function App() {
       <div className="page">
         <div className="loading-overlay">
           <div className="cost-card">
-            <h3 className="cost-card__title">예상 API 비용</h3>
+            <h3 className="cost-card__title">{t.costTitle}</h3>
             <div className="cost-card__model">
-              <span>모델</span>
+              <span>{t.costModel}</span>
               <span className="cost-card__accent">{model.label}</span>
             </div>
             {costEstimate.items.map((item, i) => (
               <div key={i} className="cost-card__row">
                 <span>{item.label}</span>
                 <span className={item.cached ? "cost-card__cached" : ""}>
-                  {item.cached ? '캐시 (무료)' : formatCost(item.cost)}
+                  {item.cached ? t.costCached : formatCost(item.cost)}
                 </span>
               </div>
             ))}
             <div className="cost-card__total">
-              <span>예상 총 비용</span>
+              <span>{t.costTotal}</span>
               <span>{formatCost(costEstimate.total)}</span>
             </div>
             {costEstimate.total === 0 && (
               <p className="cost-card__cached" style={{ textAlign: 'center', marginTop: 8 }}>
-                모든 데이터가 캐시되어 있어 추가 비용이 없습니다!
+                {t.costAllCached}
               </p>
             )}
             <p className="cost-card__disclaimer">
-              * Gemini API 공식 가격 기준 추정치입니다. 실제 비용은 다를 수 있습니다.
+              {t.costDisclaimer}
             </p>
             <div className="cost-card__actions">
-              <button className="btn-ghost" onClick={() => costResolveRef.current?.(false)}>취소</button>
-              <button className="btn-primary" onClick={() => costResolveRef.current?.(true)}>진행</button>
+              <button className="btn-ghost" onClick={() => costResolveRef.current?.(false)}>{t.cancel}</button>
+              <button className="btn-primary" onClick={() => costResolveRef.current?.(true)}>{t.proceed}</button>
             </div>
           </div>
         </div>

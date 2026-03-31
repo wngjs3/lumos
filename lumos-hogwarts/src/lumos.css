@@ -61,6 +61,24 @@ body {
 .hdr__actions {
   display: flex; align-items: center; gap: 8px;
 }
+.hdr__lang {
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 19px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: 'Nanum Gothic', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  transition: border-color 0.2s, color 0.2s;
+}
+.hdr__lang:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 .hdr__theme {
   width: 38px; height: 38px;
   border-radius: 50%;
@@ -330,18 +348,32 @@ body {
 
 /* ── Landing footer ── */
 .landing-footer {
-  margin-top: 40px;
-  font-size: 0.65rem;
+  margin-top: 48px;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 4px;
+}
+.landing-footer__credit {
+  font-size: 0.78rem;
   color: var(--text-dim);
   letter-spacing: 0.02em;
-  opacity: 0.5;
 }
-.landing-footer a {
+.landing-footer__credit a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 700;
+  transition: opacity 0.2s;
+}
+.landing-footer__credit a:hover { opacity: 0.7; }
+.landing-footer__sub {
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  opacity: 0.4;
+}
+.landing-footer__sub a {
   color: var(--text-dim);
   text-decoration: none;
-  transition: color 0.2s;
 }
-.landing-footer a:hover { color: var(--text-dim); }
+.landing-footer__sub a:hover { opacity: 0.7; }
 
 /* ── Recent files ── */
 .recent {
