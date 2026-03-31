@@ -41,6 +41,7 @@ const TRANSLATIONS = {
         save: '저장',
         apiKeyPlaceholder: 'API Key를 입력하세요',
         modelLabel: 'AI 모델',
+        modelFlashLite: 'Flash Lite (가장 저렴)',
         modelFlash: 'Flash (빠르고 저렴)',
         modelPro: 'Pro (고성능)',
         // Dynamic JS strings
@@ -125,6 +126,7 @@ const TRANSLATIONS = {
         save: 'Save',
         apiKeyPlaceholder: 'Enter your API Key',
         modelLabel: 'AI Model',
+        modelFlashLite: 'Flash Lite (cheapest)',
         modelFlash: 'Flash (fast & affordable)',
         modelPro: 'Pro (high performance)',
         sessionCost: 'Session cost:',
@@ -330,15 +332,21 @@ function getDefaultPrompts() {
 
 // ─── Gemini Models & Pricing ───
 const MODELS = {
+    'flash-lite': {
+        id: 'gemini-3.1-flash-lite-preview',
+        label: 'Gemini 3.1 Flash Lite',
+        inputPerMToken: 0.02,
+        outputPerMToken: 0.10,
+    },
     flash: {
-        id: 'gemini-2.5-flash-preview-05-20',
-        label: 'Gemini 2.5 Flash',
-        inputPerMToken: 0.15,
-        outputPerMToken: 0.60,
+        id: 'gemini-3-flash-preview',
+        label: 'Gemini 3 Flash',
+        inputPerMToken: 0.10,
+        outputPerMToken: 0.40,
     },
     pro: {
-        id: 'gemini-2.5-pro-preview-05-06',
-        label: 'Gemini 2.5 Pro',
+        id: 'gemini-3.1-pro-preview',
+        label: 'Gemini 3.1 Pro',
         inputPerMToken: 1.25,
         outputPerMToken: 10.0,
     },
