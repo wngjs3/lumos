@@ -118,10 +118,11 @@
                     <div class="setting-group">
                         <label data-i18n="modelLabel">AI 모델</label>
                         <select id="model-select" class="model-select">
-                            <option value="flash-lite" data-i18n="modelFlashLite">Flash Lite (가장 저렴)</option>
-                            <option value="flash" data-i18n="modelFlash">Flash (빠르고 저렴)</option>
-                            <option value="pro" data-i18n="modelPro">Pro (고성능)</option>
+                            <option value="flash-lite">Gemini 3.1 Flash Lite — $0.02 / $0.10</option>
+                            <option value="flash">Gemini 3 Flash — $0.10 / $0.40</option>
+                            <option value="pro">Gemini 3.1 Pro — $1.25 / $10.0</option>
                         </select>
+                        <p class="hint" data-i18n="modelPriceHint">* 가격: 입력 / 출력 (per 1M tokens)</p>
                     </div>
                     <div class="setting-group">
                         <label data-i18n="summaryPromptLabel">전체 요약 프롬프트</label>
