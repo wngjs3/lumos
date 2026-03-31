@@ -6,7 +6,6 @@ import {
   estimateFullPdfCost, formatCost, callGemini,
   renderPageToImage, loadPdfJs, DEFAULT_PROMPTS, storageKey,
   cachePdfBuffer, getCachedPdfBuffer, deleteCachedPdf,
-  type ModelKey,
 } from "./lib/gemini";
 
 interface RecentFile {
@@ -287,7 +286,6 @@ export default function App() {
   // Settings
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
   const [modelKey, setModelKey] = useState<string>(() => localStorage.getItem('gemini_model') || 'flash');
-  const [systemPrompt, setSystemPrompt] = useState(DEFAULT_PROMPTS.qa);
 
   // Upload
   const [isDragging, setIsDragging] = useState(false);
