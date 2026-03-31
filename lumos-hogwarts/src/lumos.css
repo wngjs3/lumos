@@ -331,12 +331,13 @@ body {
 /* ── Landing footer ── */
 .landing-footer {
   margin-top: 40px;
-  font-size: 0.62rem;
-  color: var(--border);
+  font-size: 0.65rem;
+  color: var(--text-dim);
   letter-spacing: 0.02em;
+  opacity: 0.5;
 }
 .landing-footer a {
-  color: var(--border);
+  color: var(--text-dim);
   text-decoration: none;
   transition: color 0.2s;
 }
