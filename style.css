@@ -763,6 +763,19 @@ body {
     color: var(--text);
 }
 
+.model-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.model-list-status {
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
 .api-key-wrap {
     display: flex;
     gap: 8px;

@@ -43,7 +43,7 @@ No build step, no dependencies to install — just open and go.
 
 | Layer | Technology |
 |-------|------------|
-| AI | Gemini API (`gemini-3.1-pro-preview`) |
+| AI | Gemini API (`gemini-flash-latest` by default, with runtime model listing) |
 | PDF Parsing | PDF.js |
 | Math Rendering | KaTeX |
 | Frontend | Vanilla JS (ES modules), HTML, CSS |

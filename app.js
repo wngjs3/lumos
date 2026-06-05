@@ -41,7 +41,14 @@ const TRANSLATIONS = {
         save: '저장',
         apiKeyPlaceholder: 'API Key를 입력하세요',
         modelLabel: 'AI 모델',
-        modelPriceHint: '* 가격: 입력 / 출력 (per 1M tokens)',
+        modelPriceHint: '* latest alias 가격은 실제 연결 모델에 따라 달라질 수 있습니다.',
+        refreshModels: '최신 모델 목록 불러오기',
+        modelListNeedsApiKey: 'API Key를 입력하면 최신 모델 목록을 불러올 수 있습니다.',
+        modelListLoading: 'Gemini API 모델 목록을 불러오는 중...',
+        modelListLoaded: '사용 가능한 Gemini 모델 {n}개를 불러왔습니다.',
+        modelListFailed: '모델 목록을 불러오지 못했습니다. 기본 목록을 사용합니다.',
+        unknownPricing: '가격 자동 변동',
+        costEstimateUnavailable: '선택한 모델의 가격 정보가 없어 예상 비용을 계산하지 않습니다.',
         // Dynamic JS strings
         sessionCost: '이번 세션 비용:',
         currentSessionCost: '현재 세션 비용:',
@@ -124,7 +131,14 @@ const TRANSLATIONS = {
         save: 'Save',
         apiKeyPlaceholder: 'Enter your API Key',
         modelLabel: 'AI Model',
-        modelPriceHint: '* Price: input / output (per 1M tokens)',
+        modelPriceHint: '* latest alias pricing can change with the model it resolves to.',
+        refreshModels: 'Load latest model list',
+        modelListNeedsApiKey: 'Enter an API key to load the latest model list.',
+        modelListLoading: 'Loading Gemini API model list...',
+        modelListLoaded: 'Loaded {n} available Gemini models.',
+        modelListFailed: 'Could not load model list. Using the default list.',
+        unknownPricing: 'pricing varies',
+        costEstimateUnavailable: 'No pricing is registered for the selected model, so cost estimates are not calculated.',
         sessionCost: 'Session cost:',
         currentSessionCost: 'Session cost:',
         accumulatedCost: 'Total cost:',
@@ -227,6 +241,7 @@ function toggleLanguage() {
     currentLang = currentLang === 'ko' ? 'en' : 'ko';
     localStorage.setItem('lang', currentLang);
     applyLanguage();
+    renderModelSelect();
 }
 
 // ─── Default Prompts ───
@@ -327,30 +342,221 @@ function getDefaultPrompts() {
 }
 
 // ─── Gemini Models & Pricing ───
+const DEFAULT_MODEL_KEY = 'flash';
+
 const MODELS = {
     'flash-lite': {
-        id: 'gemini-3.1-flash-lite-preview',
-        label: 'Gemini 3.1 Flash Lite',
-        inputPerMToken: 0.25,
-        outputPerMToken: 1.50,
+        id: 'gemini-flash-lite-latest',
+        label: 'Gemini Flash-Lite Latest',
+        inputPerMToken: NaN,
+        outputPerMToken: NaN,
+        pricingKnown: false,
     },
     flash: {
-        id: 'gemini-3-flash-preview',
-        label: 'Gemini 3 Flash',
-        inputPerMToken: 0.50,
-        outputPerMToken: 3.00,
+        id: 'gemini-flash-latest',
+        label: 'Gemini Flash Latest',
+        inputPerMToken: NaN,
+        outputPerMToken: NaN,
+        pricingKnown: false,
     },
     pro: {
-        id: 'gemini-3.1-pro-preview',
-        label: 'Gemini 3.1 Pro',
-        inputPerMToken: 2.00,
-        outputPerMToken: 12.00,
+        id: 'gemini-pro-latest',
+        label: 'Gemini Pro Latest',
+        inputPerMToken: NaN,
+        outputPerMToken: NaN,
+        pricingKnown: false,
     },
 };
 
+const KNOWN_MODEL_PRICING = Object.fromEntries(
+    Object.values(MODELS)
+        .filter(hasPricing)
+        .map(model => [
+            model.id,
+            {
+                inputPerMToken: model.inputPerMToken,
+                outputPerMToken: model.outputPerMToken,
+            },
+        ])
+);
+
+const MODEL_ORDER = [
+    'gemini-flash-latest',
+    'gemini-flash-lite-latest',
+    'gemini-pro-latest',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-pro',
+    'gemini-3.5-flash',
+    'gemini-3.1-flash-lite',
+    'gemini-3-flash-preview',
+    'gemini-3.1-pro-preview',
+];
+
+let modelOptions = sortModelOptions(Object.entries(MODELS).map(([key, model]) => ({ key, ...model })));
+
+function normalizeModelId(name) {
+    return String(name || '').replace(/^models\//, '');
+}
+
+function labelFromModelId(id) {
+    return normalizeModelId(id)
+        .split('-')
+        .map(part => {
+            if (/^\d/.test(part)) return part;
+            return part.charAt(0).toUpperCase() + part.slice(1);
+        })
+        .join(' ')
+        .replace(/^Gemini /i, 'Gemini ');
+}
+
+function getKnownPricing(id) {
+    return KNOWN_MODEL_PRICING[normalizeModelId(id)] || null;
+}
+
+function hasPricing(model) {
+    return model?.pricingKnown !== false &&
+        Number.isFinite(model?.inputPerMToken) &&
+        Number.isFinite(model?.outputPerMToken);
+}
+
+function isUsableGeminiTextModel(model) {
+    const id = normalizeModelId(model.name || model.baseModelId);
+    const label = model.displayName || '';
+    const haystack = `${id} ${label}`.toLowerCase();
+    const methods = model.supportedGenerationMethods || [];
+
+    if (!id.startsWith('gemini-')) return false;
+    if (!methods.includes('generateContent')) return false;
+    return !/(embedding|imagen|veo|lyria|tts|live|image|nano|aqa|robotics|computer-use)/.test(haystack);
+}
+
+function sortModelOptions(options) {
+    return [...options].sort((a, b) => {
+        const ai = MODEL_ORDER.indexOf(a.id);
+        const bi = MODEL_ORDER.indexOf(b.id);
+        const ar = ai === -1 ? 999 : ai;
+        const br = bi === -1 ? 999 : bi;
+        if (ar !== br) return ar - br;
+        return a.label.localeCompare(b.label);
+    });
+}
+
+function mergeFetchedModels(apiModels) {
+    const byId = new Map(modelOptions.map(model => [model.id, model]));
+
+    for (const apiModel of apiModels) {
+        if (!isUsableGeminiTextModel(apiModel)) continue;
+
+        const id = normalizeModelId(apiModel.name || apiModel.baseModelId);
+        const existing = byId.get(id);
+        const pricing = getKnownPricing(id);
+
+        byId.set(id, {
+            key: existing?.key || id,
+            id,
+            label: apiModel.displayName || existing?.label || labelFromModelId(id),
+            inputPerMToken: pricing?.inputPerMToken ?? existing?.inputPerMToken ?? NaN,
+            outputPerMToken: pricing?.outputPerMToken ?? existing?.outputPerMToken ?? NaN,
+            pricingKnown: Boolean(pricing || existing?.pricingKnown),
+            inputTokenLimit: apiModel.inputTokenLimit,
+            outputTokenLimit: apiModel.outputTokenLimit,
+        });
+    }
+
+    return sortModelOptions([...byId.values()]);
+}
+
+function modelOptionLabel(model) {
+    if (!hasPricing(model)) return `${model.label} — ${t('unknownPricing')}`;
+    return `${model.label} — $${model.inputPerMToken} / $${model.outputPerMToken}`;
+}
+
+function renderModelSelect() {
+    const select = $('model-select');
+    if (!select) return;
+
+    const savedValue = localStorage.getItem('gemini_model') || DEFAULT_MODEL_KEY;
+    const savedId = MODELS[savedValue]?.id || normalizeModelId(savedValue);
+
+    select.innerHTML = '';
+    for (const model of modelOptions) {
+        const option = document.createElement('option');
+        option.value = model.key || model.id;
+        option.dataset.modelId = model.id;
+        option.textContent = modelOptionLabel(model);
+        select.appendChild(option);
+    }
+
+    const matchingValue = [...select.options].find(option =>
+        option.value === savedValue || option.dataset.modelId === savedId
+    )?.value;
+    select.value = matchingValue || DEFAULT_MODEL_KEY;
+}
+
+function setModelListStatus(message) {
+    const el = $('model-list-status');
+    if (el) el.textContent = message || '';
+}
+
+async function fetchGeminiModels(apiKey) {
+    const models = [];
+    let pageToken = '';
+
+    do {
+        const params = new URLSearchParams({ key: apiKey, pageSize: '1000' });
+        if (pageToken) params.set('pageToken', pageToken);
+
+        const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?${params}`);
+        if (!resp.ok) {
+            const err = await resp.text();
+            throw new Error(`ListModels ${resp.status}: ${err}`);
+        }
+
+        const json = await resp.json();
+        models.push(...(json.models || []));
+        pageToken = json.nextPageToken || '';
+    } while (pageToken);
+
+    return models;
+}
+
+async function refreshModelList(apiKey, { silent = false } = {}) {
+    if (!apiKey) {
+        setModelListStatus(t('modelListNeedsApiKey'));
+        return;
+    }
+
+    const button = $('btn-refresh-models');
+    if (button) button.disabled = true;
+    if (!silent) setModelListStatus(t('modelListLoading'));
+
+    try {
+        const apiModels = await fetchGeminiModels(apiKey);
+        modelOptions = mergeFetchedModels(apiModels);
+        renderModelSelect();
+        setModelListStatus(t('modelListLoaded', { n: modelOptions.length }));
+    } catch (e) {
+        console.error('Gemini model list error:', e);
+        setModelListStatus(t('modelListFailed'));
+    } finally {
+        if (button) button.disabled = false;
+    }
+}
+
 function getModel() {
-    const key = localStorage.getItem('gemini_model') || 'flash';
-    return MODELS[key] || MODELS.flash;
+    const value = localStorage.getItem('gemini_model') || DEFAULT_MODEL_KEY;
+    if (MODELS[value]) return MODELS[value];
+
+    const id = normalizeModelId(value);
+    return modelOptions.find(model => model.id === id) || {
+        key: id,
+        id,
+        label: labelFromModelId(id),
+        inputPerMToken: NaN,
+        outputPerMToken: NaN,
+        pricingKnown: false,
+    };
 }
 
 function getPricing() {
@@ -383,6 +589,9 @@ function recentKey() { return 'recent_files'; }
 // ─── Cost Estimation ───
 function estimateCost(numImages, isOutput = true) {
     const pricing = getPricing();
+    if (!hasPricing(getModel())) {
+        return { inputTokens: 0, outputTokens: 0, inputCost: 0, outputCost: 0, total: 0 };
+    }
     const inputTokens = (numImages * pricing.tokensPerImage) + pricing.avgPromptTokens;
     const outputTokens = isOutput ? pricing.avgOutputTokens : 0;
     const inputCost = (inputTokens / 1_000_000) * pricing.inputPerMToken;
@@ -436,6 +645,7 @@ function updateCostDisplay() {
 }
 
 function addCost(numImages) {
+    if (!hasPricing(getModel())) return;
     const cost = estimateCost(numImages);
     state.sessionCost += cost.total;
     updateCostDisplay();
@@ -450,26 +660,31 @@ function showCostConfirm(numPages, hasCachedSummary, cachedSlides) {
             <span class="cost-label">${t('modelLabel')}</span>
             <span class="cost-value" style="color:var(--accent);">${model.label}</span>
         </div>`;
-        for (const item of estimate.items) {
-            if (item.cached) {
-                html += `<div class="cost-row">
-                    <span class="cost-label">${item.label}</span>
-                    <span class="cost-cached">${t('cachedFree')}</span>
-                </div>`;
-            } else {
-                html += `<div class="cost-row">
-                    <span class="cost-label">${item.label}</span>
-                    <span class="cost-value">${formatCost(item.cost)}</span>
-                </div>`;
+        if (!hasPricing(model)) {
+            html += `<p class="cost-cached" style="margin-top:12px;text-align:center;">${t('costEstimateUnavailable')}</p>`;
+        } else {
+            for (const item of estimate.items) {
+                if (item.cached) {
+                    html += `<div class="cost-row">
+                        <span class="cost-label">${item.label}</span>
+                        <span class="cost-cached">${t('cachedFree')}</span>
+                    </div>`;
+                } else {
+                    html += `<div class="cost-row">
+                        <span class="cost-label">${item.label}</span>
+                        <span class="cost-value">${formatCost(item.cost)}</span>
+                    </div>`;
+                }
             }
-        }
-        html += `<div class="cost-row cost-total">
-            <span>${t('estimatedTotal')}</span>
-            <span>${formatCost(estimate.total)}</span>
-        </div>`;
 
-        if (estimate.total === 0) {
-            html += `<p class="cost-cached" style="margin-top:12px;text-align:center;">${t('allCachedMsg')}</p>`;
+            html += `<div class="cost-row cost-total">
+                <span>${t('estimatedTotal')}</span>
+                <span>${formatCost(estimate.total)}</span>
+            </div>`;
+
+            if (estimate.total === 0) {
+                html += `<p class="cost-cached" style="margin-top:12px;text-align:center;">${t('allCachedMsg')}</p>`;
+            }
         }
 
         $('cost-breakdown').innerHTML = html;
@@ -610,7 +825,7 @@ async function callGemini(contents, systemInstruction) {
 
     // Track cost from usage metadata if available
     const usage = json.usageMetadata;
-    if (usage) {
+    if (usage && hasPricing(model)) {
         const pricing = getPricing();
         const inputCost = ((usage.promptTokenCount || 0) / 1_000_000) * pricing.inputPerMToken;
         const outputCost = ((usage.candidatesTokenCount || 0) / 1_000_000) * pricing.outputPerMToken;
@@ -1033,11 +1248,17 @@ function showRecentFiles() {
 
 function openSettings() {
     $('api-key-input').value = state.apiKey;
-    $('model-select').value = localStorage.getItem('gemini_model') || 'flash';
+    renderModelSelect();
     $('prompt-summary').value = state.prompts.summary;
     $('prompt-slide').value = state.prompts.slide;
     $('prompt-qa').value = state.prompts.qa;
     $('settings-modal').style.display = 'flex';
+
+    if (state.apiKey) {
+        refreshModelList(state.apiKey, { silent: true });
+    } else {
+        setModelListStatus(t('modelListNeedsApiKey'));
+    }
 }
 
 function closeSettings() {
@@ -1082,6 +1303,11 @@ $('settings-modal').querySelector('.modal-overlay').addEventListener('click', cl
 $('btn-toggle-key').addEventListener('click', () => {
     const input = $('api-key-input');
     input.type = input.type === 'password' ? 'text' : 'password';
+});
+
+$('btn-refresh-models').addEventListener('click', () => {
+    const apiKey = $('api-key-input').value.trim() || state.apiKey;
+    refreshModelList(apiKey);
 });
 
 $('btn-save-settings').addEventListener('click', () => {
@@ -1241,6 +1467,7 @@ $('btn-lang').addEventListener('click', toggleLanguage);
 
 // ─── Init ───
 applyLanguage();
+renderModelSelect();
 showRecentFiles();
 
 // Check if API key is set

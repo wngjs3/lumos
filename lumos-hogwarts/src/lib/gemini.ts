@@ -1,29 +1,189 @@
 // ─── Gemini Models & Pricing ───
+export const DEFAULT_MODEL_KEY = 'flash';
+
 export const MODELS = {
   'flash-lite': {
-    id: 'gemini-3.1-flash-lite-preview',
-    label: 'Gemini 3.1 Flash Lite',
-    inputPerMToken: 0.25,
-    outputPerMToken: 1.50,
+    id: 'gemini-flash-lite-latest',
+    label: 'Gemini Flash-Lite Latest',
+    inputPerMToken: NaN,
+    outputPerMToken: NaN,
+    pricingKnown: false,
   },
   flash: {
-    id: 'gemini-3-flash-preview',
-    label: 'Gemini 3 Flash',
-    inputPerMToken: 0.50,
-    outputPerMToken: 3.00,
+    id: 'gemini-flash-latest',
+    label: 'Gemini Flash Latest',
+    inputPerMToken: NaN,
+    outputPerMToken: NaN,
+    pricingKnown: false,
   },
   pro: {
-    id: 'gemini-3.1-pro-preview',
-    label: 'Gemini 3.1 Pro',
-    inputPerMToken: 2.00,
-    outputPerMToken: 12.00,
+    id: 'gemini-pro-latest',
+    label: 'Gemini Pro Latest',
+    inputPerMToken: NaN,
+    outputPerMToken: NaN,
+    pricingKnown: false,
   },
 } as const;
 
 export type ModelKey = keyof typeof MODELS;
+export type ModelInfo = {
+  key?: string;
+  id: string;
+  label: string;
+  inputPerMToken: number;
+  outputPerMToken: number;
+  pricingKnown?: boolean;
+  inputTokenLimit?: number;
+  outputTokenLimit?: number;
+};
 
-export function getModel(key: string): (typeof MODELS)[ModelKey] {
-  return MODELS[key as ModelKey] || MODELS.flash;
+type ApiGeminiModel = {
+  name?: string;
+  baseModelId?: string;
+  displayName?: string;
+  inputTokenLimit?: number;
+  outputTokenLimit?: number;
+  supportedGenerationMethods?: string[];
+};
+
+type ApiModelListResponse = {
+  models?: ApiGeminiModel[];
+  nextPageToken?: string;
+};
+
+const KNOWN_MODEL_PRICING = Object.fromEntries(
+  Object.values(MODELS)
+    .filter(hasModelPricing)
+    .map(model => [
+      model.id,
+      {
+        inputPerMToken: model.inputPerMToken,
+        outputPerMToken: model.outputPerMToken,
+      },
+    ])
+);
+
+const MODEL_ORDER = [
+  'gemini-flash-latest',
+  'gemini-flash-lite-latest',
+  'gemini-pro-latest',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-pro',
+  'gemini-3.5-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-3-flash-preview',
+  'gemini-3.1-pro-preview',
+];
+
+export function normalizeModelId(name: string) {
+  return String(name || '').replace(/^models\//, '');
+}
+
+export function defaultModelOptions(): ModelInfo[] {
+  return sortModelOptions(Object.entries(MODELS).map(([key, model]) => ({ key, ...model })));
+}
+
+function labelFromModelId(id: string) {
+  return normalizeModelId(id)
+    .split('-')
+    .map(part => (/^\d/.test(part) ? part : part.charAt(0).toUpperCase() + part.slice(1)))
+    .join(' ')
+    .replace(/^Gemini /i, 'Gemini ');
+}
+
+function getKnownPricing(id: string) {
+  return KNOWN_MODEL_PRICING[normalizeModelId(id)] || null;
+}
+
+export function hasModelPricing(model: ModelInfo) {
+  return model.pricingKnown !== false &&
+    Number.isFinite(model.inputPerMToken) &&
+    Number.isFinite(model.outputPerMToken);
+}
+
+function isUsableGeminiTextModel(model: ApiGeminiModel) {
+  const id = normalizeModelId(model.name || model.baseModelId || '');
+  const label = model.displayName || '';
+  const haystack = `${id} ${label}`.toLowerCase();
+  const methods = model.supportedGenerationMethods || [];
+
+  if (!id.startsWith('gemini-')) return false;
+  if (!methods.includes('generateContent')) return false;
+  return !/(embedding|imagen|veo|lyria|tts|live|image|nano|aqa|robotics|computer-use)/.test(haystack);
+}
+
+function sortModelOptions(options: ModelInfo[]) {
+  return [...options].sort((a, b) => {
+    const ai = MODEL_ORDER.indexOf(a.id);
+    const bi = MODEL_ORDER.indexOf(b.id);
+    const ar = ai === -1 ? 999 : ai;
+    const br = bi === -1 ? 999 : bi;
+    if (ar !== br) return ar - br;
+    return a.label.localeCompare(b.label);
+  });
+}
+
+function mergeFetchedModels(apiModels: ApiGeminiModel[], seedModels: ModelInfo[]) {
+  const byId = new Map(seedModels.map(model => [model.id, model]));
+
+  for (const apiModel of apiModels) {
+    if (!isUsableGeminiTextModel(apiModel)) continue;
+
+    const id = normalizeModelId(apiModel.name || apiModel.baseModelId || '');
+    const existing = byId.get(id);
+    const pricing = getKnownPricing(id);
+
+    byId.set(id, {
+      key: existing?.key || id,
+      id,
+      label: apiModel.displayName || existing?.label || labelFromModelId(id),
+      inputPerMToken: pricing?.inputPerMToken ?? existing?.inputPerMToken ?? NaN,
+      outputPerMToken: pricing?.outputPerMToken ?? existing?.outputPerMToken ?? NaN,
+      pricingKnown: Boolean(pricing || existing?.pricingKnown),
+      inputTokenLimit: apiModel.inputTokenLimit,
+      outputTokenLimit: apiModel.outputTokenLimit,
+    });
+  }
+
+  return sortModelOptions([...byId.values()]);
+}
+
+export async function fetchGeminiModelOptions(apiKey: string, seedModels = defaultModelOptions()) {
+  const models: ApiGeminiModel[] = [];
+  let pageToken = '';
+
+  do {
+    const params = new URLSearchParams({ key: apiKey, pageSize: '1000' });
+    if (pageToken) params.set('pageToken', pageToken);
+
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?${params}`);
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`ListModels ${resp.status}: ${text}`);
+    }
+
+    const json = await resp.json() as ApiModelListResponse;
+    models.push(...(json.models || []));
+    pageToken = json.nextPageToken || '';
+  } while (pageToken);
+
+  return mergeFetchedModels(models, seedModels);
+}
+
+export function getModel(key: string, options = defaultModelOptions()): ModelInfo {
+  const curated = MODELS[key as ModelKey] as ModelInfo | undefined;
+  if (curated) return curated;
+
+  const id = normalizeModelId(key);
+  return options.find(model => model.id === id) || {
+    key: id,
+    id,
+    label: labelFromModelId(id),
+    inputPerMToken: NaN,
+    outputPerMToken: NaN,
+    pricingKnown: false,
+  };
 }
 
 // ─── Cost Estimation ───
@@ -31,7 +191,11 @@ const TOKENS_PER_IMAGE = 258;
 const AVG_PROMPT_TOKENS = 500;
 const AVG_OUTPUT_TOKENS = 4000;
 
-export function estimateCost(model: (typeof MODELS)[ModelKey], numImages: number) {
+export function estimateCost(model: ModelInfo, numImages: number) {
+  if (!hasModelPricing(model)) {
+    return { inputTokens: 0, outputTokens: 0, inputCost: 0, outputCost: 0, total: 0 };
+  }
+
   const inputTokens = numImages * TOKENS_PER_IMAGE + AVG_PROMPT_TOKENS;
   const outputTokens = AVG_OUTPUT_TOKENS;
   const inputCost = (inputTokens / 1_000_000) * model.inputPerMToken;
@@ -40,7 +204,7 @@ export function estimateCost(model: (typeof MODELS)[ModelKey], numImages: number
 }
 
 export function estimateFullPdfCost(
-  model: (typeof MODELS)[ModelKey],
+  model: ModelInfo,
   numPages: number,
   hasCachedSummary: boolean,
   cachedSlides: number,

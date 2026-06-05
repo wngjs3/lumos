@@ -2,10 +2,11 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import "./lumos.css";
 import Viewer from "./Viewer";
 import {
-  MODELS, getModel, hashFile, loadCachedData, saveData,
+  getModel, hashFile, loadCachedData, saveData,
   estimateFullPdfCost, formatCost, callGemini,
   renderPageToImage, loadPdfJs, DEFAULT_PROMPTS, storageKey,
   cachePdfBuffer, getCachedPdfBuffer, deleteCachedPdf,
+  defaultModelOptions, fetchGeminiModelOptions, hasModelPricing, DEFAULT_MODEL_KEY,
 } from "./lib/gemini";
 
 interface RecentFile {
@@ -205,6 +206,13 @@ const T = {
     settings: 'Settings',
     apiKeyLabel: 'Gemini API Key',
     modelLabel: 'Model',
+    refreshModels: 'Load latest model list',
+    modelListNeedsApiKey: 'Enter an API key to load the latest model list.',
+    modelListLoading: 'Loading Gemini API model list...',
+    modelListLoaded: (n: number) => `Loaded ${n} available Gemini models.`,
+    modelListFailed: 'Could not load model list. Using the default list.',
+    unknownPricing: 'pricing varies',
+    costEstimateUnavailable: 'No pricing is registered for the selected model, so cost estimates are not calculated.',
     save: 'Save',
     loading: 'Loading PDF...',
     fileAnalysis: 'Analyzing file',
@@ -217,7 +225,7 @@ const T = {
     costTotal: 'Estimated total',
     costCached: 'Cached (free)',
     costAllCached: 'All data is cached — no additional cost!',
-    costDisclaimer: '* Estimate based on official Gemini API pricing. Actual cost may vary.',
+    costDisclaimer: '* latest alias pricing can change with the model it resolves to.',
     cancel: 'Cancel',
     proceed: 'Proceed',
     setApiKey: 'Please set your Gemini API Key first.',
@@ -234,6 +242,13 @@ const T = {
     settings: '설정',
     apiKeyLabel: 'Gemini API Key',
     modelLabel: '모델',
+    refreshModels: '최신 모델 목록 불러오기',
+    modelListNeedsApiKey: 'API Key를 입력하면 최신 모델 목록을 불러올 수 있습니다.',
+    modelListLoading: 'Gemini API 모델 목록을 불러오는 중...',
+    modelListLoaded: (n: number) => `사용 가능한 Gemini 모델 ${n}개를 불러왔습니다.`,
+    modelListFailed: '모델 목록을 불러오지 못했습니다. 기본 목록을 사용합니다.',
+    unknownPricing: '가격 자동 변동',
+    costEstimateUnavailable: '선택한 모델의 가격 정보가 없어 예상 비용을 계산하지 않습니다.',
     save: '저장',
     loading: 'PDF 로드 중...',
     fileAnalysis: '파일 분석',
@@ -246,7 +261,7 @@ const T = {
     costTotal: '예상 총 비용',
     costCached: '캐시 (무료)',
     costAllCached: '모든 데이터가 캐시되어 있어 추가 비용이 없습니다!',
-    costDisclaimer: '* Gemini API 공식 가격 기준 추정치입니다. 실제 비용은 다를 수 있습니다.',
+    costDisclaimer: '* latest alias 가격은 실제 연결 모델에 따라 달라질 수 있습니다.',
     cancel: '취소',
     proceed: '진행',
     setApiKey: 'Gemini API Key를 먼저 설정해주세요.',
@@ -285,7 +300,10 @@ export default function App() {
 
   // Settings
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
-  const [modelKey, setModelKey] = useState<string>(() => localStorage.getItem('gemini_model') || 'flash');
+  const [modelKey, setModelKey] = useState<string>(() => localStorage.getItem('gemini_model') || DEFAULT_MODEL_KEY);
+  const [modelOptions, setModelOptions] = useState(() => defaultModelOptions());
+  const [modelStatus, setModelStatus] = useState("");
+  const [modelListLoading, setModelListLoading] = useState(false);
 
   // Upload
   const [isDragging, setIsDragging] = useState(false);
@@ -307,7 +325,34 @@ export default function App() {
   const [pdfHash, setPdfHash] = useState("");
   const [pdfData, setPdfData] = useState<any>(null);
 
-  const model = getModel(modelKey);
+  const model = getModel(modelKey, modelOptions);
+
+  const refreshModels = useCallback(async (silent = false) => {
+    const key = apiKey.trim();
+    if (!key) {
+      setModelStatus(t.modelListNeedsApiKey);
+      return;
+    }
+
+    setModelListLoading(true);
+    if (!silent) setModelStatus(t.modelListLoading);
+
+    try {
+      const options = await fetchGeminiModelOptions(key, modelOptions);
+      setModelOptions(options);
+      setModelStatus(t.modelListLoaded(options.length));
+    } catch (e) {
+      console.error('Gemini model list error:', e);
+      setModelStatus(t.modelListFailed);
+    } finally {
+      setModelListLoading(false);
+    }
+  }, [apiKey, modelOptions, t]);
+
+  useEffect(() => {
+    if (showSettings && apiKey) refreshModels(true);
+    if (showSettings && !apiKey) setModelStatus(t.modelListNeedsApiKey);
+  }, [showSettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save settings
   const saveSettings = () => {
@@ -473,10 +518,23 @@ export default function App() {
             <div className="sp__field">
               <label className="sp__label">{t.modelLabel}</label>
               <select className="sp__select" value={modelKey} onChange={e => setModelKey(e.target.value)}>
-                {Object.entries(MODELS).map(([k, m]) => (
-                  <option key={k} value={k}>{m.label} — ${m.inputPerMToken} / ${m.outputPerMToken}</option>
+                {modelOptions.map(m => (
+                  <option key={m.key || m.id} value={m.key || m.id}>
+                    {hasModelPricing(m)
+                      ? `${m.label} — $${m.inputPerMToken} / $${m.outputPerMToken}`
+                      : `${m.label} — ${t.unknownPricing}`}
+                  </option>
                 ))}
               </select>
+              <button
+                className="sp__save"
+                type="button"
+                onClick={() => refreshModels()}
+                disabled={modelListLoading}
+              >
+                {t.refreshModels}
+              </button>
+              {modelStatus && <p className="sp__hint">{modelStatus}</p>}
             </div>
             <button className="sp__save" onClick={saveSettings}>{t.save}</button>
           </div>
@@ -574,22 +632,30 @@ export default function App() {
               <span>{t.costModel}</span>
               <span className="cost-card__accent">{model.label}</span>
             </div>
-            {costEstimate.items.map((item, i) => (
-              <div key={i} className="cost-card__row">
-                <span>{item.label}</span>
-                <span className={item.cached ? "cost-card__cached" : ""}>
-                  {item.cached ? t.costCached : formatCost(item.cost)}
-                </span>
-              </div>
-            ))}
-            <div className="cost-card__total">
-              <span>{t.costTotal}</span>
-              <span>{formatCost(costEstimate.total)}</span>
-            </div>
-            {costEstimate.total === 0 && (
+            {!hasModelPricing(model) ? (
               <p className="cost-card__cached" style={{ textAlign: 'center', marginTop: 8 }}>
-                {t.costAllCached}
+                {t.costEstimateUnavailable}
               </p>
+            ) : (
+              <>
+                {costEstimate.items.map((item, i) => (
+                  <div key={i} className="cost-card__row">
+                    <span>{item.label}</span>
+                    <span className={item.cached ? "cost-card__cached" : ""}>
+                      {item.cached ? t.costCached : formatCost(item.cost)}
+                    </span>
+                  </div>
+                ))}
+                <div className="cost-card__total">
+                  <span>{t.costTotal}</span>
+                  <span>{formatCost(costEstimate.total)}</span>
+                </div>
+                {costEstimate.total === 0 && (
+                  <p className="cost-card__cached" style={{ textAlign: 'center', marginTop: 8 }}>
+                    {t.costAllCached}
+                  </p>
+                )}
+              </>
             )}
             <p className="cost-card__disclaimer">
               {t.costDisclaimer}
@@ -615,7 +681,11 @@ export default function App() {
         data={pdfData}
         apiKey={apiKey}
         modelId={model.id}
-        modelPricing={{ inputPerMToken: model.inputPerMToken, outputPerMToken: model.outputPerMToken }}
+        modelOptions={modelOptions}
+        modelPricing={{
+          inputPerMToken: hasModelPricing(model) ? model.inputPerMToken : 0,
+          outputPerMToken: hasModelPricing(model) ? model.outputPerMToken : 0,
+        }}
         onBack={() => setView("landing")}
       />
     );

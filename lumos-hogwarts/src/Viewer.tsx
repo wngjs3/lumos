@@ -2,8 +2,9 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import {
-  callGemini, md, formatCost, MODELS, getModel,
+  callGemini, md, formatCost, getModel,
   DEFAULT_PROMPTS, saveData as persistData,
+  type ModelInfo,
 } from "./lib/gemini";
 
 // ── Render markdown + LaTeX to HTML string (no DOM mutation) ──
@@ -35,13 +36,14 @@ interface ViewerProps {
   data: { summary: string | null; slides: SlideData[] };
   apiKey: string;
   modelId: string;
+  modelOptions: ModelInfo[];
   modelPricing: { inputPerMToken: number; outputPerMToken: number };
   onBack: () => void;
 }
 
 export default function Viewer({
   pdfDoc, slideImages, pdfName, pdfHash,
-  data, apiKey, modelId, modelPricing, onBack,
+  data, apiKey, modelId, modelOptions, modelPricing, onBack,
 }: ViewerProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slideExplanations, setSlideExplanations] = useState<(string | null)[]>(
@@ -53,8 +55,8 @@ export default function Viewer({
   const [chatLoading, setChatLoading] = useState(false);
   const [chatModelKey, setChatModelKey] = useState<string>(() => {
     // Find key matching the passed modelId
-    const entry = Object.entries(MODELS).find(([, m]) => m.id === modelId);
-    return entry ? entry[0] : 'flash';
+    const entry = modelOptions.find(m => m.id === modelId);
+    return entry?.key || entry?.id || 'flash';
   });
   const [sessionCost, setSessionCost] = useState(0);
   const [chatHeight, setChatHeight] = useState(280);
@@ -239,7 +241,7 @@ export default function Viewer({
     slide.chat.push({ role: 'user', text: q });
     setChatMessages([...slide.chat]);
 
-    const chatModel = getModel(chatModelKey);
+    const chatModel = getModel(chatModelKey, modelOptions);
     try {
       const res = await callGemini(apiKey, chatModel.id, contents, sysPrompt);
       slide.chat.push({ role: 'ai', text: res.text });
@@ -360,8 +362,8 @@ export default function Viewer({
               onChange={e => setChatModelKey(e.target.value)}
               disabled={chatLoading}
             >
-              {Object.entries(MODELS).map(([k, m]) => (
-                <option key={k} value={k}>{m.label.replace('Gemini ', '')}</option>
+              {modelOptions.map(m => (
+                <option key={m.key || m.id} value={m.key || m.id}>{m.label.replace('Gemini ', '')}</option>
               ))}
             </select>
             <button onClick={sendChat} disabled={chatLoading || !chatInput.trim()}>전송</button>

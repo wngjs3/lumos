@@ -226,6 +226,13 @@ body {
 }
 .sp__select:focus { border-color: var(--accent); }
 
+.sp__hint {
+  margin: -2px 0 0;
+  color: var(--text-dim);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
 .sp__divider {
   height: 1px;
   background: var(--border);
